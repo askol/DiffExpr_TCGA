@@ -4,6 +4,8 @@
 library(qvalue)
 library(ggpubr)
 
+source("/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Code/Summary_funcs.r")
+
 GSEADir <- "/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Results/GSEA/"
 ResultDir <- "/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Results/"
 SummaryDir <- "/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Summary/"
@@ -15,9 +17,16 @@ GSEAGSFiles <- c("/home/askol/bin/GSEA_genesets/Custom/Hormone_Immune_Custom.gmt
 
 setwd(SummaryDir)
 
-source("/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Code/Summary_funcs.r")
 
-projects <- c("TCGA-SKCM", "TCGA-THCA", "TCGA-LIHC", "TCGA-LUAD", "TCGA-LAML")
+
+## projects <- c("TCGA-SKCM", "TCGA-THCA", "TCGA-LIHC", "TCGA-LUAD", "TCGA-LAML")
+projects = read.table(file = "/gpfs/data/stranger-lab/askol/TCGA/TCGA_Target_projects.txt",
+    header=TRUE, as.is=TRUE, sep="\t")
+projects = projects[grep("TCGA",projects[,1]),1]
+
+skip.cancers <- c("TCGA-BRCA","TCGA-OV", "TCGA-CESC", "TCGA-PRAD", "TCGA-TGCT",
+                  "TCGA-UCS", "TCGA-UCEC")
+projects <- projects[!projects %in% skip.cancers] 
 
 proj.tis.match <- rbind(c("TCGA-SKCM", "Skin_Not_Sun_Exposed_Suprapubic"),
                         c("TCGA-SKCM", "Skin_Sun_Exposed_Lower_leg"),
@@ -35,44 +44,65 @@ logPs.tcga <- tmp$logPs
 Qs.tcga <- tmp$Qs
 geneInfo.tcga <- tmp$GeneInfo
 
-colSums(Qs.tcga < .10, na.rm=T)
+
+## ####################### ##
 ##
 ## BRING IN GTEX TISSUES
 ##
+## ####################### ##
 
-setwd("/gpfs/data/stranger-lab/askol/GTEx/DiffExpression/Results/Summary/")
-GSEADir <- "/gpfs/data/stranger-lab/askol/GTEx/DiffExpression/Results/GSEA/"
-ResultDir <- "/gpfs/data/stranger-lab/askol/GTEx/DiffExpression/Results/"
-SummaryDir <- paste0(ResultDir,"Summary/")
-PlotDir <- paste0(ResultDir,"Plots/")
-
-GSEAOutDir <- paste0(ResultDir,"GSEA/")
-
-ResultDirGtex <- "/gpfs/data/stranger-lab/askol/GTEx/DiffExpression/Results/"
 GSEADirGtex <- "/gpfs/data/stranger-lab/askol/GTEx/DiffExpression/Results/GSEA/"
-
-source("/gpfs/data/stranger-lab/askol/GTEx/DiffExpression/Code/Summary_funcs.r")
-
-tissues <- c("Skin_Not_Sun_Exposed_Suprapubic",
-             "Skin_Sun_Exposed_Lower_leg",
-             "Thyroid", "Liver", "Lung",
-             "Brain_Cortex", "Brain_Caudate_basal_ganglia",
-             "Cells_EBV-transformed_lymphocytes")
 
 tissues <- read.table(file = paste0("/gpfs/data/gtex-group/sex_biased_regulation_v8/",
                           "data/support_files/all_v8_tissues_both_sexes.txt"), as.is=T)
+tissues <- unlist(tissues)
+ResultDirGtex <- "/gpfs/data/stranger-lab/askol/GTEx/DiffExpression/Results/"
 
-
-tmp <- collect.results(tissues)
+tmp <- collect.results.gtex(tissues, ResultDirGtex)
 
 logFC.gtex <- tmp$logFC
 logPs.gtex <- tmp$logPs
 Qs.gtex <- tmp$Qs
 geneInfo.gtex <- tmp$GeneInfo
 
-colSums(Qs.gtex < .05, na.rm=T)
 
-source("/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Code/Summary_funcs.r")
+#####  PLOT 1: NUMBER OF DE GENES ######
+## GET DISTRIBUTION OF THE NUMBER OF DE GENES ##
+get.noDE.genes(Qs.tcga, Qs.gtex, project, tissues, PlotDir)
+
+## WHICH GENES ARE COMMONLY DE BETWEEN GTEX AND TCGA ##
+
+
+## ## WHICH GENES ARE SHARED ACROSS CANCER
+## META ANALYSIS AND FDR > .10
+## PLOT NUMBER OF CANCERS/TISSUES SHARED PER GENE
+## AND
+## PLOT NUMBER GENES FROM EACH CHROMOSOME WITH MULTIPLE CANCERS/TISSUES/GENE
+
+file.pre = "tcga"
+noDE.tcga <- get.noDE.cancers.for.gene(Qs.tcga, qthresh= .1, geneInfo.tcga,
+                                       Ntrunc = 5, min.studies = 5,
+                                       ResultDir, PlotDir, file.pre)
+file.pre = "gtex"
+noDE.gtex <- get.noDE.cancers.for.gene(Qs.gtex, qthresh= .1, geneInfo.gtex,
+                                       Ntrunc = 5, min.studies = 10,
+                                       ResultDir, PlotDir, file.pre)
+
+## PLOT THE DISTRIBUTION OF DE GENES ON THE X CHROMOSOME ##
+plot.de.on.x(Qs.tcga, geneInfo.tcga, PlotDir, file.pre="tcga")
+plot.de.on.x(Qs.gtex, geneInfo.gtex, PlotDir, file.pre="gtex")
+    
+
+## FIND OUT WHICH GENES ARE COMMONLY DE IN BOTH CANCER AND NORMAL TISSUE ##
+tmp <- get.common.common.DE.genes(noDE.gtex, noDE.tcga, Qs.tcga, geneInfo.tcga,
+                           Qs.gtex, geneInfo.gtex,
+                           thresh.gtex = 10, thresh.tcga=5,
+                           ResultDir, PlotDir)
+Ns <- tmp$N; Qs <- tmp$Qs
+
+file <- paste0(PlotDir,"Dist_DE_Conditional.pdf")
+plot.de.conditional(Ns, file=file)
+
 
 ## Preform quantile to quantile comparison ##
 ## What is the average rank of the genes TCGA in the xth quantile of GTEx ##

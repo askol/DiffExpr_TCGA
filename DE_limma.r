@@ -11,7 +11,9 @@ run_limma <- function(project){
     count <- data[[3]]
     logCPM <- data[[2]]
     design <- data[[1]]
-    
+    design.nosvs <- data[[4]]
+
+    ## LIMMA WITHOUT VOOM (INCLUDE SVS AND BIRTHYEAR) ##
     fit <- lmFit(logCPM, design)
     fit <- eBayes(fit, trend=TRUE)
     limma.rslt <- topTable(fit,coef=2, n=Inf, sort.by="none")
@@ -23,7 +25,14 @@ run_limma <- function(project){
     names(se) <- paste("se", gsub("\\(|\\)", "", names(se)), sep=".")
     df.resid <- as.data.frame(fit$df.resid)
     limma.rslt <- data.frame(limma.rslt, coef, se, df.resid)
-    
+
+    out.file <- paste0(ResultDir, project,"_DE_limma.rslts")
+    write.table(file = out.file, limma.rslt[order(limma.rslt$P.Value),], quote=F,
+                row.names=F, col.names=T, sep="\t")
+    print(paste0("Wrote ", out.file))
+
+
+    ## LIMMA WITH VOOM (INCLUDES SVS AND BIRTHYEAR)
     v <- voom(count, design, plot=F)
     vfit <- lmFit(v, design)    
     efit <- eBayes(vfit)
@@ -37,6 +46,32 @@ run_limma <- function(project){
     df.resid <- as.data.frame(efit$df.resid)
     voom.rslt <- data.frame(voom.rslt, coef, se, df.resid)
 
+    out.file <- paste0(ResultDir, project,"_DE_voom.rslts")
+    write.table(file = out.file, voom.rslt[order(voom.rslt$P.Value),], quote=F,
+                row.names=F, col.names=T, sep="\t")
+    print(paste0("Wrote ", out.file))
+
+    ## LIMMA WITH VOOM (INCLUDES BIRTHYEAR ONLY)
+    v <- voom(count, design.nosvs, plot=F)
+    vfit <- lmFit(v, design.nosvs)    
+    efit <- eBayes(vfit)
+    voom.rslt <- topTable(efit, coef=2, n=Inf, sort.by="none")
+
+    voom.rslt <- data.frame(gene = count$genes[,1], voom.rslt)
+    coef <- as.data.frame(efit$coefficient)
+    names(coef) <- paste("coef", gsub("\\(|\\)", "", names(coef)), sep=".")
+    se <- as.data.frame(efit$s2.post * efit$stdev.unscaled)
+    names(se) <- paste("se", gsub("\\(|\\)", "", names(se)), sep=".")
+    df.resid <- as.data.frame(efit$df.resid)
+    voom.rslt <- data.frame(voom.rslt, coef, se, df.resid)
+
+    out.file <- paste0(ResultDir, project,"_DE_voom_nosvs.rslts")
+    write.table(file = out.file, voom.rslt[order(voom.rslt$P.Value),], quote=F,
+                row.names=F, col.names=T, sep="\t")
+    print(paste0("Wrote ", out.file))
+
+    
+    
     ## ANALYSIZE AFTER INVERSE NORMALIZATION ##
     cpm.invnorm <- inverse_quantile_normalization(v$E)
     txt <-  paste0("summary(lm(t(cpm.invnorm) ~ group + ", paste(
@@ -49,22 +84,12 @@ run_limma <- function(project){
     lm.rslt <- data.frame(v$genes, lm.rslt)
     names(lm.rslt)[1] <- "ENSMBL"
 
-    ## OUTPUT DATA ##
-    out.file <- paste0(ResultDir, project,"_DE_limma.rslts")
-    write.table(file = out.file, limma.rslt[order(limma.rslt$P.Value),], quote=F,
-                row.names=F, col.names=T, sep="\t")
-    print(paste0("Wrote ", out.file))
-
-    out.file <- paste0(ResultDir, project,"_DE_voom.rslts")
-    write.table(file = out.file, voom.rslt[order(voom.rslt$P.Value),], quote=F,
-                row.names=F, col.names=T, sep="\t")
-    print(paste0("Wrote ", out.file))
-    
     out.file <- paste0(ResultDir, project,"_LM_invnorm.rslts")
     write.table(file = out.file, lm.rslt[order(lm.rslt$P.Value),], quote=F,
                 row.names=F, col.names=F, sep="\t")
     
     print(paste0("Wrote ", out.file))
+    
 }
 
 get.data <- function(project, DataDir){
@@ -84,10 +109,11 @@ get.data <- function(project, DataDir){
                   paste(names(data$samples)[grep("SV", names(data$samples))], collapse="+"),
                   ", data$samples)")
     design <- eval(parse(text = txt))
+    design.nosvs <- model.matrix(~group + BirthYear, data$samples)
     
     logCPM <- cpm(data, log=TRUE, prior.count=3)
 
-    return(list(design = design, logCPM = logCPM, count <- data))
+    return(list(design = design, logCPM = logCPM, count = data, design.nosvs = design.nosvs))
 }
 
 inverse_quantile_normalization <- function(gct) {

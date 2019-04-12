@@ -20,7 +20,9 @@ make.gsea.scores <- function(rslts){
 
 
     scores <- data.frame(gene = rslts$SYMBOL)
-    scores$score <- sign(rslts$logFC - 1)*(-log10(rslts$P.Value))
+    
+    ## scores$score <- sign(rslts$logFC - 1)*(-log10(rslts$P.Value))
+    scores$score <- sign(rslts$logFC)*(-log10(rslts$P.Value))
     scores <- scores[order(scores$score, decreasing=T),]
     return(scores)
     
