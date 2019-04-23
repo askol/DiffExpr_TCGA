@@ -31,10 +31,10 @@ R scripts:
 
 filename                          |  description
 ----------------------------------|------------------------------------------------------------------------------------
-DE_limma.r                        |  Runs sex DE. Takes TCGA study abreviation as argument. Write results to hard coded directory.
-Run_DE_limma.r			  |  Loops through all TCGA studies, writes PBS script to run DE using DE_limma.r. Submits jobs to cluster.
-Compare_DE_results.r		  |  Reads in results from DE analysis performed via Run_DE_limma.r. Creates files for and runs Gene Set Enrichment Analysis. Creates a file for the summarized output from the GSEA analysis.r
-Compare_DE_results_funcs.r	  |  Contains the functions used to run GSEA, collect, and summarize the data.
+DE_limma.r                        |  Runs sex DE. Takes TCGA study abbreviation as argument. Write results from serveral sex DE analysis performed in LIMMA to hard coded directory.
+Run_DE_limma.r			  |  Loops through all TCGA studies, writes PBS script to run sex DE using DE_limma.r. Submits jobs to cluster.
+Compare_DE_results.r		  |  Reads in results from sex DE analysis performed via Run_DE_limma.r. Creates files for and runs Gene Set Enrichment Analysis. Writes summarized results from the GSEA analysis.r to file.
+Compare_DE_results_funcs.r	  |  Contains the functions used to run GSEA, collect, and summarize the results.
 Run_GSEA_analysis.r		  |  Loops through all TCGA studies, writes PBS script to run Compare_DE_results.r for each TCGA study. Submits jobs to cluster.
-Summary.r			  |  Performs a number of analyses to examine the DE results, includes plots to summarize the number of DE genes per study, and the distribution of the number of DE genes per chromosome. Plot to compare, across studies, the distribution of DE genes across the X chromosome. Identified DE genes that are shared across multiple cancers, and between cancers and GTEx tissues. Etc.
+Summary.r			  |  Performs a number of analyses to examine the DE results, includes plots to summarize the number of DE genes per study, and the distribution of the number of DE genes per chromosome. Creates plots that compare, across studies, the distribution of DE genes across the X chromosome. Identifies sex DE genes that are shared across multiple cancers, and between cancers and GTEx tissues. Etc.
 Summary_funcs.r			  |  Functions to perform the analyses and plotting described requested from Summary.r
