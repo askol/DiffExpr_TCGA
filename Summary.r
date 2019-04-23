@@ -89,8 +89,8 @@ noDE.gtex <- get.noDE.cancers.for.gene(Qs.gtex, qthresh= .1, geneInfo.gtex,
                                        ResultDir, PlotDir, file.pre)
 
 ## PLOT THE DISTRIBUTION OF DE GENES ON THE X CHROMOSOME ##
-plot.de.on.x(Qs.tcga, geneInfo.tcga, PlotDir, file.pre="tcga")
-plot.de.on.x(Qs.gtex, geneInfo.gtex, PlotDir, file.pre="gtex")
+x.tcga <- plot.de.on.x(logPs.tcga, logFC.tcga, geneInfo.tcga, PlotDir, file.pre="tcga")
+x.gtex <- plot.de.on.x(logPs.gtex, logFC.gtex, geneInfo.gtex, PlotDir, file.pre="gtex")
     
 
 ## FIND OUT WHICH GENES ARE COMMONLY DE IN BOTH CANCER AND NORMAL TISSUE ##
@@ -100,9 +100,10 @@ tmp <- get.common.common.DE.genes(noDE.gtex, noDE.tcga, Qs.tcga, geneInfo.tcga,
                            ResultDir, PlotDir)
 Ns <- tmp$N; Qs <- tmp$Qs
 
-file <- paste0(PlotDir,"Dist_DE_Conditional.pdf")
-plot.de.conditional(Ns, file=file)
+Ns.dist <- get.n.dist(Ns)
 
+file <- paste0(PlotDir,"Dist_DE_Conditional.pdf")
+plot.cond.de.distribution(Ns.dist, file=file)
 
 ## Preform quantile to quantile comparison ##
 ## What is the average rank of the genes TCGA in the xth quantile of GTEx ##

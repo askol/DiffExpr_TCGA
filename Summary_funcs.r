@@ -168,7 +168,7 @@ get.noDE.genes <- function(Qs.tcga, Qs.gtex, projects, tissues, PlotDir){
     Ns.tcga <- plotNDE(Nsig.DE.tcga, file = file)
 
     file = paste0(PlotDir, "NoDEGenes_tcga_trunc.pdf")
-    trash <- plotNDE(Nsig.DE.tcga, file=file, max.count = 2000)
+    trash <- plotNDE(Nsig.DE.tcga, file=file, max.count = 500)
     
     file = paste0(PlotDir,"NoDEGenes_gtex.pdf")
     Ns.gtex <- plotNDE(Nsig.DE.gtex, file = file)
@@ -189,15 +189,14 @@ plotNDE <- function(Ns, file, max.count = ""){
     Ns$N.m.sc <- diff(rng.de)/diff(rng.N)*(Ns$N.m - rng.N[1]) + rng.de[1]
     Ns$N.f.sc <- diff(rng.de)/diff(rng.N)*(Ns$N.f - rng.N[1]) + rng.de[1]
     Ns$N.ave.sc <- diff(rng.de)/diff(rng.N)*(Ns$N.ave - rng.N[1]) + rng.de[1]
+    Ns$N.min <- apply(Ns[,c("N.m","N.f")], 1, min)
     mult.fact <- max(c(Ns$N.m, Ns$N.f))/max(Ns$NSig)
     
     ind <- which(names(Ns) == "tissue")
     if (length(ind)>0){ names(Ns)[ind] = "project" }
 
-    ord <- order(Ns$N.ave, decreasing=T)
+    ord <- order(Ns$N.min, decreasing=T)
     Ns$project <- factor(Ns$project, levels=Ns$project[ord])
-
- 
     
     p <- ggplot(Ns, aes(x = project)) +
                 geom_bar(aes(y=NSig), stat="identity", fill="steelblue") +
@@ -214,7 +213,7 @@ plotNDE <- function(Ns, file, max.count = ""){
     print(p)
     
     dev.off()
-
+    print(paste0("Wrote plots to ", file))
     return(Ns)
 }
 
@@ -295,7 +294,6 @@ get.common.common.DE.genes <- function(N.gtex, N.tcga, Qs.tcga, geneInfo.tcga,
     reg <- lm(n.gtex.imp ~ n.tcga.imp + I(n.tcga.imp*n.tcga.imp) + I(n.tcga.imp^3), data = subset(N, incl==1))
     N$stdR <- NA
     N$stdR[N$incl==1] <- stdres(reg)
-
     
     ## CHECK CORRELATION OF SIGNIFICANCE BETWEEN CANCERS AND BETWEEN CANCERS AND GTEX
     Qs <- left_join(Qs.gtex, gi, by = "ensgene")
@@ -348,6 +346,71 @@ best.match <- function(C, n){
                         "best.match2", "cor", "cor","cor")
     return(best)
 }
+
+get.n.dist <- function(Ns){
+    
+    n.max.gtex <- max(Ns$n.gtex); n.max.tcga <- max(Ns$n.tcga)
+    
+    N.dist.g.g.t <- matrix(0,n.max.gtex+1, n.max.tcga+1)
+    rownames(N.dist.g.g.t) <-  0:n.max.gtex
+    colnames(N.dist.g.g.t) <- 0:n.max.tcga
+    N.dist.t.g.g <- t(N.dist.g.g.t)
+    
+    for (i in unique(Ns$n.gtex)){
+        ## condition value in the columns (gtex)
+        tmp <- filter(Ns, n.gtex==i) %>% select(n.tcga) %>% table()
+        N.dist.t.g.g[as.numeric(names(tmp))+1,i+1] <- tmp/sum(tmp)
+    }
+    ## >= cum prob
+    N.dist.t.g.g.le <- apply(N.dist.t.g.g,2,cumsum)
+    ## <= cum prob
+    N.dist.t.g.g.ge <- apply(N.dist.t.g.g,2, function(x) rev(cumsum(rev(x))))      
+
+    for (i in unique(Ns$n.tcga)){
+        ## conditional value in the column (tcga)
+        tmp <- filter(Ns, n.tcga==i) %>% select(n.gtex) %>% table()
+        N.dist.g.g.t[as.numeric(names(tmp))+1, i+1] <- tmp/sum(tmp)
+    }
+    N.dist.g.g.t.le <- as.data.frame(apply(N.dist.g.g.t,2,cumsum))
+    N.dist.g.g.t.le <- mutate( N.dist.g.g.t.le,
+                              n.gtex = as.character(rownames(N.dist.g.g.t.le))) %>%
+        melt(id = "n.gtex", variable.name = "n.tcga",value.name="prob.g.g.t.le") %>%
+                              mutate(n.tcga = as.character(n.tcga))
+       
+    N.dist.g.g.t.ge <- as.data.frame(apply(N.dist.g.g.t,2, function(x) rev(cumsum(rev(x)))))
+    N.dist.g.g.t.ge <- mutate( N.dist.g.g.t.ge,
+                      n.gtex = as.character(rownames(N.dist.g.g.t.ge))) %>%
+                          melt(id = "n.gtex", variable.name = "n.tcga",value.name="prob.g.g.t.ge") %>%
+                              mutate(n.tcga = as.character(n.tcga))
+                                      
+    
+    N.dist.t.g.g.le <- as.data.frame(apply(N.dist.t.g.g,2,cumsum))
+    N.dist.t.g.g.le <- mutate( N.dist.t.g.g.le, n.tcga = as.character(rownames(N.dist.t.g.g.le))) %>%
+        melt(id = "n.tcga", variable.name = "n.gtex",value.name="prob.t.g.g.le") %>%
+                              mutate(n.gtex = as.character(n.gtex))
+       
+    N.dist.t.g.g.ge <- as.data.frame(apply(N.dist.t.g.g,2, function(x) rev(cumsum(rev(x)))))
+    N.dist.t.g.g.ge <- mutate( N.dist.t.g.g.ge, n.tcga = as.character(rownames(N.dist.t.g.g.ge))) %>%
+        melt(id = "n.tcga", variable.name = "n.gtex",value.name="prob.t.g.g.ge") %>%
+                              mutate(n.gtex = as.character(n.gtex))
+
+    N.dist <- N.dist.g.g.t.le
+    N.dist <- inner_join(N.dist, N.dist.g.g.t.ge, by=c("n.gtex","n.tcga"))
+    N.dist <- inner_join(N.dist, N.dist.t.g.g.ge, by=c("n.gtex","n.tcga"))
+    N.dist <- inner_join(N.dist, N.dist.t.g.g.le, by=c("n.gtex","n.tcga"))
+
+    Ns <- mutate(Ns, n.gtex = as.character(n.gtex)) %>% mutate(n.tcga = as.character(n.tcga))
+    N.dist <- left_join(Ns, N.dist, by=c("n.gtex", "n.tcga"))
+
+    N.dist <- mutate(N.dist, lab = ifelse(prob.g.g.t.le < 0.001 | prob.g.g.t.ge < 0.001 |
+                                 prob.t.g.g.ge < 0.001 | prob.t.g.g.le < 0.001, symbol, ""))
+    N.dist <- mutate(N.dist, n.gtex = as.numeric(n.gtex), n.tcga=as.numeric(n.tcga))
+    return(N.dist)
+      
+}
+        
+
+
 
 quant.quant.comparo <- function(proj.tis.match, logPs1, logPs2, geneInfo, quants){
     
@@ -1026,7 +1089,7 @@ plot.nostudies <- function(NoDE, file, trunc="", min.studies = 5){
                 theme(text=element_text(size=14), legend.title=element_blank()) +
                 ylab(paste0("Number of Genes DE in > ", min.studies-1)) + 
                     xlab("Chromosome") +
-                        scale_fill_discrete(labels = c("Expect", "Observed"))
+                        scale_fill_discrete(labels = c("Observed", "Expected"))
 
     print(p)
     dev.off()
@@ -1034,40 +1097,59 @@ plot.nostudies <- function(NoDE, file, trunc="", min.studies = 5){
     print(paste0("Wrote plot in ",file))
 }
 
-plot.de.on.x <- function(Qs, geneInfo, PlotDir, file.pre="tcga"){
+plot.de.on.x <- function(Ps, FC, geneInfo, PlotDir, file.pre="tcga"){
 
-    if (any(names(Qs)=="ensgene")){
-        Qs <- rename(Qs ,gene = ensgene)        
+    if (any(names(Ps)=="ensgene")){
+        Ps <- rename(Ps ,gene = ensgene)
+        FC <- rename(FC, gene = ensgene)
+         FC[,-1] = -1*FC[,-1]
         geneInfo <- rename(geneInfo, gene=ensgene)
         geneInfo <- select(geneInfo, gene,chr,start)
     }else {
-        Qs <- rename(Qs,gene=SYMBOL)
+        Ps <- rename(Ps,gene=SYMBOL)
+        FC <- rename(FC, gene=SYMBOL)
+       
         geneInfo <- rename(geneInfo, gene=SYMBOL)
         geneInfo <- select(geneInfo, gene,chr,start)
     }
-    
+
     xinfo <- filter(geneInfo, chr=="X")
-    Qs.x <- inner_join(xinfo, Qs, by="gene")
-    Qs.x <- select(Qs.x, -gene, -chr)
-    Qs.x <- melt(Qs.x, id = "start", variable.name = "study", value.name="q")
-    Qs.x <- mutate(Qs.x, qcat = cut(q, breaks=c(0,.01,.05,.10,.25,.5,1)))
-    Qs.x <- mutate(Qs.x, start = start/1000000)
-    Qs.x <- mutate(Qs.x, study = gsub("TCGA-","", study))
-    clrs <- colorspace::diverge_hsv(21)[21-c(0:5)]
-    colfunc<-colorRampPalette(c("red","yellow"))
-    clrs <- colfunc(6)
+    Ps.x <- inner_join(xinfo, Ps, by="gene")
+    FC.x <- inner_join(xinfo, FC, by="gene")
+    Ps.x <- select(Ps.x, -gene, -chr)
+    FC.x <- select(FC.x, -gene, -chr)
+    Ps.x <- melt(Ps.x, id = "start", variable.name = "study", value.name="p")
+    Ps.x <- mutate(Ps.x, p = 10^(-1*p))
+    FC.x <- melt(FC.x, id = "start", variable.name = "study", value.name="FC")
+
+    Ps.x <- inner_join(Ps.x, FC.x, by=c("start","study"))
+    Ps.x <- mutate(Ps.x, study = gsub("TCGA-","", study))
+    Ps.x <- filter(Ps.x, !is.na(p) & !is.na(FC))
+    
+    Ps.x <- group_by(Ps.x, study) %>% mutate(r = rank(p, ties.method="random"))
+    Ps.x <- group_by(Ps.x, study) %>%
+        mutate(rnk = cut(rank(p)/sum(!is.na(p)), breaks=c(0,.01,.05,.1,.25,1)))
+    Ps.x <- mutate(Ps.x, up.down =  as.factor(1*(sign(FC) == 1)))
+    
+    Ps.x <- mutate(Ps.x, start = start/1000000)
+    cols <- c("#e7298a", "#d95f02","#fdbf6f", "#a6cee3", "#d9d9d9")
+    szs <- c(3, 1.5, .5, .1, .1)
+    shps <- c(16, 18)
     file <- paste0(PlotDir,file.pre,"_DEonX.pdf")
     pdf(file = file, width=12, height=8)
-    p <- ggplot(data=Qs.x, aes(x=start, y=study, color=qcat)) +
-        geom_point(size=.5) +
+    p <- ggplot(data=Ps.x, aes(x=start, y=study, color=rnk, size=rnk)) +
+        geom_point(aes(shape=up.down)) +
             theme_minimal() +
-                scale_color_manual(values=clrs, name="DE q-value range") +
-                    xlab("Position on X (Mb)") + ylab("") +
-                        theme(legend.position="bottom") 
+                scale_color_manual(values=cols, name="Rank range")+
+                   scale_size_manual(values=szs, name="") +
+                   scale_shape_manual(values=shps) +
+                   xlab("Position on X (Mb)") + ylab("") +
+                   theme(legend.position="bottom") 
     
-
     print(p)
     dev.off()
+    print(paste0("Wrote plot to ",file))
+    return(Ps.x)
 }
 
 
