@@ -288,8 +288,8 @@ get.common.common.DE.genes <- function(N.gtex, N.tcga, Qs.tcga, geneInfo.tcga,
     N <- mutate(N, incl = ifelse(N.gtex >= 0.80*n.max.gtex & N.tcga >= 0.80*n.max.tcga &
                        (n.gtex > 0 | n.tcga>0),
                        1, 0))
-    N <- mutate(N, n.gtex.imp = n.gtex*N.gtex/n.max.gtex) %>%
-        mutate(n.tcga.imp = n.tcga*N.tcga/n.max.tcga)
+    N <- mutate(N, n.gtex.imp = round(n.gtex*n.max.gtex/N.gtex)) %>%
+        mutate(n.tcga.imp = round(n.tcga*n.max.tcga/N.tcga))
 
     reg <- lm(n.gtex.imp ~ n.tcga.imp + I(n.tcga.imp*n.tcga.imp) + I(n.tcga.imp^3), data = subset(N, incl==1))
     N$stdR <- NA
@@ -350,61 +350,76 @@ best.match <- function(C, n){
 get.n.dist <- function(Ns){
     
     n.max.gtex <- max(Ns$n.gtex); n.max.tcga <- max(Ns$n.tcga)
-    
+
     N.dist.g.g.t <- matrix(0,n.max.gtex+1, n.max.tcga+1)
     rownames(N.dist.g.g.t) <-  0:n.max.gtex
     colnames(N.dist.g.g.t) <- 0:n.max.tcga
     N.dist.t.g.g <- t(N.dist.g.g.t)
     
-    for (i in unique(Ns$n.gtex)){
+    for (i in unique(Ns$n.gtex.imp)){
         ## condition value in the columns (gtex)
-        tmp <- filter(Ns, n.gtex==i) %>% select(n.tcga) %>% table()
+        tmp <- filter(Ns, n.gtex.imp==i) %>% select(n.tcga.imp) %>% table()
         N.dist.t.g.g[as.numeric(names(tmp))+1,i+1] <- tmp/sum(tmp)
     }
-    ## >= cum prob
+    ## <= cum prob P(n.tcga.de <= obs | n.gtex.de = j)
     N.dist.t.g.g.le <- apply(N.dist.t.g.g,2,cumsum)
-    ## <= cum prob
+    ## >= cum prob P(n.tcga.de >= obs | n.gtex.de = j)
     N.dist.t.g.g.ge <- apply(N.dist.t.g.g,2, function(x) rev(cumsum(rev(x))))      
 
-    for (i in unique(Ns$n.tcga)){
+    for (i in unique(Ns$n.tcga.imp)){
         ## conditional value in the column (tcga)
-        tmp <- filter(Ns, n.tcga==i) %>% select(n.gtex) %>% table()
+        tmp <- filter(Ns, n.tcga.imp==i) %>% select(n.gtex.imp) %>% table()
         N.dist.g.g.t[as.numeric(names(tmp))+1, i+1] <- tmp/sum(tmp)
     }
+
+    ## >= cum prob P(n.gtex.de <= obs | n.tcga.de = j)
     N.dist.g.g.t.le <- as.data.frame(apply(N.dist.g.g.t,2,cumsum))
     N.dist.g.g.t.le <- mutate( N.dist.g.g.t.le,
-                              n.gtex = as.character(rownames(N.dist.g.g.t.le))) %>%
-        melt(id = "n.gtex", variable.name = "n.tcga",value.name="prob.g.g.t.le") %>%
-                              mutate(n.tcga = as.character(n.tcga))
-       
+                              n.gtex.imp = as.character(rownames(N.dist.g.g.t.le))) %>%
+                                  melt(id = "n.gtex.imp", variable.name = "n.tcga.imp"
+                                       ,value.name="prob.g.g.t.le") %>%
+                              mutate(n.tcga.imp = as.character(n.tcga.imp))
+
+    ## <=cum prob P(n.gtex.de <= obs | n.tcga.de = j)
     N.dist.g.g.t.ge <- as.data.frame(apply(N.dist.g.g.t,2, function(x) rev(cumsum(rev(x)))))
     N.dist.g.g.t.ge <- mutate( N.dist.g.g.t.ge,
-                      n.gtex = as.character(rownames(N.dist.g.g.t.ge))) %>%
-                          melt(id = "n.gtex", variable.name = "n.tcga",value.name="prob.g.g.t.ge") %>%
-                              mutate(n.tcga = as.character(n.tcga))
-                                      
-    
+                      n.gtex.imp = as.character(rownames(N.dist.g.g.t.ge))) %>%
+                          melt(id = "n.gtex.imp", variable.name = "n.tcga.imp",value.name="prob.g.g.t.ge") %>%
+                              mutate(n.tcga.imp = as.character(n.tcga.imp))
+                                          
     N.dist.t.g.g.le <- as.data.frame(apply(N.dist.t.g.g,2,cumsum))
-    N.dist.t.g.g.le <- mutate( N.dist.t.g.g.le, n.tcga = as.character(rownames(N.dist.t.g.g.le))) %>%
-        melt(id = "n.tcga", variable.name = "n.gtex",value.name="prob.t.g.g.le") %>%
-                              mutate(n.gtex = as.character(n.gtex))
+    N.dist.t.g.g.le <- mutate( N.dist.t.g.g.le, n.tcga.imp = as.character(rownames(N.dist.t.g.g.le))) %>%
+        melt(id = "n.tcga.imp", variable.name = "n.gtex.imp",value.name="prob.t.g.g.le") %>%
+                              mutate(n.gtex.imp = as.character(n.gtex.imp))
        
     N.dist.t.g.g.ge <- as.data.frame(apply(N.dist.t.g.g,2, function(x) rev(cumsum(rev(x)))))
-    N.dist.t.g.g.ge <- mutate( N.dist.t.g.g.ge, n.tcga = as.character(rownames(N.dist.t.g.g.ge))) %>%
-        melt(id = "n.tcga", variable.name = "n.gtex",value.name="prob.t.g.g.ge") %>%
-                              mutate(n.gtex = as.character(n.gtex))
+    N.dist.t.g.g.ge <- mutate( N.dist.t.g.g.ge, n.tcga.imp = as.character(rownames(N.dist.t.g.g.ge))) %>%
+        melt(id = "n.tcga.imp", variable.name = "n.gtex.imp",value.name="prob.t.g.g.ge") %>%
+                              mutate(n.gtex.imp = as.character(n.gtex.imp))
 
     N.dist <- N.dist.g.g.t.le
-    N.dist <- inner_join(N.dist, N.dist.g.g.t.ge, by=c("n.gtex","n.tcga"))
-    N.dist <- inner_join(N.dist, N.dist.t.g.g.ge, by=c("n.gtex","n.tcga"))
-    N.dist <- inner_join(N.dist, N.dist.t.g.g.le, by=c("n.gtex","n.tcga"))
+    N.dist <- inner_join(N.dist, N.dist.g.g.t.ge, by=c("n.gtex.imp","n.tcga.imp"))
+    N.dist <- inner_join(N.dist, N.dist.t.g.g.ge, by=c("n.gtex.imp","n.tcga.imp"))
+    N.dist <- inner_join(N.dist, N.dist.t.g.g.le, by=c("n.gtex.imp","n.tcga.imp"))
 
-    Ns <- mutate(Ns, n.gtex = as.character(n.gtex)) %>% mutate(n.tcga = as.character(n.tcga))
-    N.dist <- left_join(Ns, N.dist, by=c("n.gtex", "n.tcga"))
+    Ns <- mutate(Ns, n.gtex.imp = as.character(n.gtex.imp)) %>%
+        mutate(n.tcga.imp = as.character(n.tcga.imp))
+    N.dist <- left_join(Ns, N.dist, by=c("n.gtex.imp", "n.tcga.imp"))
 
     N.dist <- mutate(N.dist, lab = ifelse(prob.g.g.t.le < 0.001 | prob.g.g.t.ge < 0.001 |
                                  prob.t.g.g.ge < 0.001 | prob.t.g.g.le < 0.001, symbol, ""))
-    N.dist <- mutate(N.dist, n.gtex = as.numeric(n.gtex), n.tcga=as.numeric(n.tcga))
+    N.dist <- mutate(N.dist, n.gtex.imp = as.numeric(n.gtex.imp), n.tcga.imp=as.numeric(n.tcga.imp))
+
+
+    ## PROBABILITY THRESHOLD FOR INTERESTING DEVIATION BETWEEN n.gtex and n.tcga ##
+    int.thresh = 0.001
+    
+    ## Fewer DE genes in TCGA THAN EXPECTED (BASED ON GTEX)
+    N.dist <- mutate(N.dist, interest.gt = ifelse(prob.t.g.g.ge <= int.thresh, 1, 0))
+    N.dist <- mutate(N.dist, interest.gt2 = ifelse(prob.g.g.t.le <= int.thresh, 1, 0))
+    ## MORE DE GENE IN TCGA THAN EXPECTED (BASED ON GTEX)
+    N.dist <- mutate(N.dist, interest.lt = ifelse(prob.t.g.g.le <= int.thresh, 1, 0))
+    N.dist <- mutate(N.dist, interest.lt2 = ifelse(prob.g.g.t.ge <= int.thresh, 1, 0))
     return(N.dist)
       
 }

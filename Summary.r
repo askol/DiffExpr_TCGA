@@ -101,9 +101,19 @@ tmp <- get.common.common.DE.genes(noDE.gtex, noDE.tcga, Qs.tcga, geneInfo.tcga,
 Ns <- tmp$N; Qs <- tmp$Qs
 
 Ns.dist <- get.n.dist(Ns)
+## INTERESTING GENES ##
+ind <- which(Ns.dist$interest.gt == 1| Ns.dist$interest.gt2 == 1 |
+             Ns.dist$interest.lt == 1| Ns.dist$interest.lt2 == 1)
+Ns.dist[ind,]
+file <- paste0(ResultDir, "DiscordantNoDE_TCGA.v.GTEX.txt")
+write.table(file = file, Ns.dist[ind,], quote=FALSE, row.names=F, col.names=T)
 
 file <- paste0(PlotDir,"Dist_DE_Conditional.pdf")
 plot.cond.de.distribution(Ns.dist, file=file)
+
+## WRITE OUT GENES THAT ARE OUTLIERS WITH RESPECT TO BE FOUND MORE OR LESS IN TCGA
+## THAN IN GTEX
+
 
 ## Preform quantile to quantile comparison ##
 ## What is the average rank of the genes TCGA in the xth quantile of GTEx ##
