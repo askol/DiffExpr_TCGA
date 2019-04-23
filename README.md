@@ -33,7 +33,6 @@ filename                          |  description
 ----------------------------------|------------------------------------------------------------------------------------
 DE_limma.r                        |  Runs sex DE. Takes TCGA study abreviation as argument. Write results to hard coded directory.
 Run_DE_limma.r			  |  Loops through all TCGA studies, writes PBS script to run DE using DE_limma.r. Submits jobs to cluster.
-
 Compare_DE_results.r		  |  Reads in results from DE analysis performed via Run_DE_limma.r. Creates files for and runs Gene Set Enrichment Analysis. Creates a file for the summarized output from the GSEA analysis.r
 Compare_DE_results_funcs.r	  |  Contains the functions used to run GSEA, collect, and summarize the data.
 Run_GSEA_analysis.r		  |  Loops through all TCGA studies, writes PBS script to run Compare_DE_results.r for each TCGA study. Submits jobs to cluster.
