@@ -2133,33 +2133,19 @@ plot.cluster.proj.genes.in.gs <-function(genes, logPs, file){
             tit = "P-value based"
             d = ps; if (i == 2){ d = qs; tit="Quantile based" }
 
-            for (j in 1:2){
-                if (i == 2 & j == 2){ next }
-                if (i == 1 & j == 1){
-                    ## MDS ##
-                    ## SCALE ##
-                    mds <- d %>% scale() %>% t() %>% dist() %>% cmdscale(k = 4) %>% as_tibble()
-                    tit = "Scaled P-value based"
-                }else{
-                    ## DONT SCALE ##
-                    if (i == 1){  tit = "P-value based" }
-                    mds <- d %>% t() %>% dist() %>% cmdscale(k = 4) %>% as_tibble()
-                }
+            mds <- d %>% t() %>% dist() %>% cmdscale(k = 4) %>% as_tibble()
+                
+            dim1 = 1; dim2 = 2
 
-                for (dim1 in 1:3){
-                    for (dim2 in (dim1+1):4){
-                        d1 = paste0("Dim.",dim1); d2 = paste0("Dim.",dim2)
-                        colnames(mds)[c(dim1,dim2)] <- c(d1,d2)
-                        ## Plot MDS
-                        print(ggscatter(mds, x = d1, y = d2,
-                                        label = colnames(d),
-                                        size = 1,
-                                        repel = TRUE,
-                                        title=paste0(cluster.name," (",tit,")")) )
-                    }
-                }
-            }
-        }
+            d1 = paste0("Dim.",dim1); d2 = paste0("Dim.",dim2)
+            colnames(mds)[c(dim1,dim2)] <- c(d1,d2)
+            ## Plot MDS
+            print(ggscatter(mds, x = d1, y = d2,
+                            label = colnames(d),
+                            size = 1,
+                            repel = TRUE,
+                            title=paste0(cluster.name," (",tit,")")) )
+        }               
         
         mn <- paste0(cluster.name)
 
