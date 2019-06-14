@@ -6,7 +6,6 @@ library(survminer)
 library(WGCNA)
 library(pscl)
 library(reshape2)
-library(fgsea, lib.loc="/home/askol/R/x86_64-pc-linux-gnu-library/3.5")
 
 
 get.results <- function(project, ResultsDir){
@@ -111,68 +110,7 @@ run.gsea <- function(project, RankDir, GSEAOutDir, GSDir, geneSet){
     }
     
 }
-
-run.fgsea <- function(project, gsea.scores, msig.file, out.file){
     
-    pathways <- gmtPathways(msig.file)   
-    scores <- unlist(gsea.scores$score);
-    names(scores) <- gsea.scores$gene
-
-    print("Running fgseaRes. . .")
-    fgseaRes <- fgseaMultilevel(pathways = pathways, 
-                      stats = scores,
-                      minSize=15,
-                      maxSize=500)
-
-    fgseaRes <- as_tibble(fgseaRes)
-    fgseaRes$Ncontrib <- sapply(fgseaRes$leadingEdge, length)
-
-    print("Calculating tags, list and signal. . .")
-    fgseaResEx <- calc.tags(fgseaRes, scores)
-    
-    fgseaResEx$LEgenes <- sapply(fgseaResEx$leadingEdge, paste, collapse=";")
-    fgseaResEx <- select(fgseaResEx, -leadingEdge)
-    fgseaResEx <- arrange(fgseaResEx, padj, pval)
-
-    write.table(file = out.file, fgseaResEx, quote=F, row.names=F, col.names=T)
-    print(paste0("Wrote fgsea results to ",out.file))
-    
-    return(fgseaRes)    
-}
-
-
-calc.tags <- function(fgseaRes, scores){
-    
-    scores <- sort(scores)
-    gnames <- factor(names(scores), levels=names(scores))
-    
-    o <- apply(fgseaRes, 1, function(x) tags.list.sig(x, gnames))
-    o <- do.call(rbind, o)
-
-    fgseaRes <- as_tibble(cbind(fgseaRes, o))
-    return(fgseaRes)
-}
-
-tags.list.sig <- function(x, gnames){
-  
-    n <- x$size
-    N <-length(gnames)
-    legenes <- factor(unlist(x$leadingEdge), levels = levels(gnames))
-    if (sign(x$ES) == -1){
-        n.peak <- max(as.numeric(legenes))
-        le.n.med <- median(as.numeric(legenes))
-    }else{
-        n.peak <- N-min(as.numeric(legenes))
-         le.n.med <- N - median(as.numeric(legenes))
-    }
-    tags <- length(legenes)/n
-    lst <- n.peak/N
-    signal <- tags*(1 - lst)*N/(N-n)
-
-    return(data.frame(tags = tags, lst = lst, signal = signal, n.peak, le.n.med))
-}
-
-      
 process.gsea.output <- function(project, GSEAOutDir,
                                 geneSet = "msigdb.v6.2.symbols.gmt", qThresh=0.25){
 
@@ -255,36 +193,6 @@ most.recent <- function(dirs){
     return(Ds[ord[1], 1])
 }
 
-
-make.fgsea.pathway <- function(msig.file){
-
-    out.file <- paste0(msig.file,".RDS")
-    if (file.exists(out.file)){
-
-        out <- readRDS(out.file)
-        return(out)
-    }else{
-
-        d <- readLines(msig.file)
-        d <- lapply(d, function(x){gs = gsub("\t.+","", x);
-                                   genes = unlist(strsplit(x,split="\t"))[-c(1:2)];
-                                   eval(parse(text = paste("list(",gs," = genes)")))})
-        saveRDS(d, out.file)
-        return(d)
-    }
+    
         
-}        
     
-    
-
-get.msigdb.genes <- function(msig.file){
-
-    d <- read.table(file = msig.file, as.is=T, header=F, fill=T)
-
-    d <- d[,-c(1,2)]
-    d <- unlist(c(d))
-    d <- unique(d)
-    ind <- which(d == "")
-    d <- d[-ind]
-    return(d)
-}

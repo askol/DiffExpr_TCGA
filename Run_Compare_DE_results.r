@@ -28,7 +28,7 @@ create.pbs <- function(ScriptDir, project){
         paste0("#PBS -o ", ScriptDir),
         "#PBS -j oe",
         paste0("#PBS -N ",project),
-        "module load R")
+        "module load R/3.5.0")
     
     write.table(file = file, sh.txt, quote=F, row.names=F, col.names=F)
 

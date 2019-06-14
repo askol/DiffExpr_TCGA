@@ -3,10 +3,12 @@
 ##  SHARED SIGNIFICANT GSs
 library(qvalue)
 library(ggpubr)
+library(annotables)
 
 source("/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Code/Summary_funcs.r")
 
 GSEADir <- "/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Results/GSEA/"
+GSEADirGTEx <- "/gpfs/data/stranger-lab/askol/GTEx/DiffExpression/Results/GSEA/"
 ResultDir <- "/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Results/"
 SummaryDir <- "/gpfs/data/stranger-lab/askol/TCGA2/DiffExpression/Summary/"
 PlotDir <- paste0(ResultDir,"Plots/")
@@ -16,7 +18,6 @@ GSEAGSFiles <- c("/home/askol/bin/GSEA_genesets/Custom/Hormone_Immune_Custom.gmt
                 "/home/askol/bin/GSEA_genesets/msigdb_v6.2_GMTs/msigdb.v6.2.symbols.gmt")
 
 setwd(SummaryDir)
-
 
 
 ## projects <- c("TCGA-SKCM", "TCGA-THCA", "TCGA-LIHC", "TCGA-LUAD", "TCGA-LAML")
@@ -44,6 +45,10 @@ logPs.tcga <- tmp$logPs
 Qs.tcga <- tmp$Qs
 geneInfo.tcga <- tmp$GeneInfo
 
+geneInfo <- grch38
+geneInfo <- select(geneInfo, -end, -description)
+## REMOVE GENES THAT MAP TO MULTIPLE CHROMOSOMES ##
+geneInfo <- removeMultiMapGenes(geneInfo)
 
 ## ####################### ##
 ##
@@ -65,10 +70,19 @@ logPs.gtex <- tmp$logPs
 Qs.gtex <- tmp$Qs
 geneInfo.gtex <- tmp$GeneInfo
 
+saveRDS(list(logFC.tcga = logFC.tcga, logPs.tcga = logPs.tcga,
+             Qs.tcga = Qs.tcga, logFC.gtex = logFC.gtex, logPs.gtex = logPs.gtex,
+             Qs.gtex = Qs.gtex), file = "Summary.RDS")
+if (0){
+    tmp <- loadRDS("Summary.RDS")
+    logFC.tcga = tmp$logFC.tcga;  logPs.tcga = tmp$logPs.tcga;
+    Qs.tcga = tmp$Qs.tcga logFC.gtex = tmp$logFC.gtex; logPs.gtex = tmp$logPs.gtex;
+    Qs.gtex = tmp$Qs.gtex
+}
 
 #####  PLOT 1: NUMBER OF DE GENES ######
 ## GET DISTRIBUTION OF THE NUMBER OF DE GENES ##
-get.noDE.genes(Qs.tcga, Qs.gtex, project, tissues, PlotDir)
+get.noDE.genes(Qs.tcga, Qs.gtex,  project, tissues, PlotDir)
 
 ## WHICH GENES ARE COMMONLY DE BETWEEN GTEX AND TCGA ##
 
@@ -80,13 +94,62 @@ get.noDE.genes(Qs.tcga, Qs.gtex, project, tissues, PlotDir)
 ## PLOT NUMBER GENES FROM EACH CHROMOSOME WITH MULTIPLE CANCERS/TISSUES/GENE
 
 file.pre = "tcga"
-noDE.tcga <- get.noDE.cancers.for.gene(Qs.tcga, qthresh= .1, geneInfo.tcga,
+
+tmp <- get.noDE.cancers.for.gene(Qs.tcga, qthresh= .1, geneInfo,
                                        Ntrunc = 5, min.studies = 5,
                                        ResultDir, PlotDir, file.pre)
+noDE.tcga <- tmp$NoDE
+t <- tmp$t; t.nox <- tmp$t.nox
+t
+## mean number of genes different between obs and expected ##
+x.ind = c(21,22)
+## mean absolute differences in observered relative to expected ##
+mean(abs(t$obs[,1]-t$exp[,1])/abs(t$exp[,1])) * 100
+## mean absolute difference in observed relative to expected in X & Y
+mean(abs(t$obs[x.ind,1] - t$exp[x.ind,1])/abs(t$exp[x.ind,1])) * 100
+## mean absolute difference in observed relative to expected in autosome
+mean(abs(t$obs[-x.ind,1] - t$exp[-x.ind,1])/abs(t$exp[-x.ind,1])) * 100
+
+t.nox
+
+file.pre = "tcga_all"
+tmp <- get.noDE.cancers.for.gene(Qs.tcga, qthresh= .1, geneInfo,
+                                       Ntrunc = 5, min.studies = 1,
+                                 ResultDir, PlotDir, file.pre)
+noDE.tcga <- tmp$NoDE
+t1 <- tmp$t
+## mean number of genes different between obs and expected ##
+mean(abs(t1$obs[,1]-t1$exp[,1])/abs(t1$exp))
+t1.nox <- tmp$t.nox
+t1
+t1.nox
+x.ind = c(23,24)
+## mean absolute differences in observered relative to expected ##
+mean(abs(t1$obs[,1]-t1$exp[,1])/abs(t1$exp[,1])) * 100
+## mean absolute difference in observed relative to expected in X & Y
+mean(abs(t1$obs[x.ind,1] - t1$exp[x.ind,1])/abs(t1$exp[x.ind,1])) * 100
+## mean absolute difference in observed relative to expected in autosome
+mean(abs(t1$obs[-x.ind,1] - t1$exp[-x.ind,1])/abs(t1$exp[-x.ind,1])) * 100
+
+
+
+## total number of DE genes ##
+t <- table(noDE.tcga$n)
+tot = sum(t[names(t)!="0"])
+## NUMBER OF SEX DE GENES IN MORE THAN 1 CANCER ##
+gt1 = sum(t[names(t)%in%c("0","1") == FALSE])
+gt1/tot
+
+gt12 <- sum(t[as.numeric(names(t)) > 12])
+gt12/tot
+
 file.pre = "gtex"
-noDE.gtex <- get.noDE.cancers.for.gene(Qs.gtex, qthresh= .1, geneInfo.gtex,
+tmp <- get.noDE.cancers.for.gene(Qs.gtex, qthresh= .1, geneInfo,
                                        Ntrunc = 5, min.studies = 10,
                                        ResultDir, PlotDir, file.pre)
+noDE.gtex <- tmp$NoDE
+t <- tmp$t.gtex; t.nox <- tmp$t.gtex.nox
+
 
 ## PLOT THE DISTRIBUTION OF DE GENES ON THE X CHROMOSOME ##
 x.tcga <- plot.de.on.x(logPs.tcga, logFC.tcga, geneInfo.tcga, PlotDir, file.pre="tcga")
@@ -94,25 +157,210 @@ x.gtex <- plot.de.on.x(logPs.gtex, logFC.gtex, geneInfo.gtex, PlotDir, file.pre=
     
 
 ## FIND OUT WHICH GENES ARE COMMONLY DE IN BOTH CANCER AND NORMAL TISSUE ##
-tmp <- get.common.common.DE.genes(noDE.gtex, noDE.tcga, Qs.tcga, geneInfo.tcga,
-                           Qs.gtex, geneInfo.gtex,
-                           thresh.gtex = 10, thresh.tcga=5,
-                           ResultDir, PlotDir)
+tmp <- get.common.common.DE.genes(noDE.gtex, noDE.tcga,
+                                  Qs.tcga,  Qs.gtex,
+                                  thresh.gtex = 10, thresh.tcga=5,
+                                  ResultDir, PlotDir)
 Ns <- tmp$N; Qs <- tmp$Qs
 
+## REMOVE GENES NOT OBSERVED IN AT LEAST 50% OF EACH POPULATION ##
+N.max.gtex <- max(Ns$N.gtex)
+N.max.tcga <- max(Ns$N.tcga)
+Ns <- filter(Ns, N.gtex >= floor(N.max.gtex/2) &
+                  N.tcga >= floor(N.max.tcga/2))
 Ns.dist <- get.n.dist(Ns)
+
+
 ## INTERESTING GENES ##
 ind <- which(Ns.dist$interest.gt == 1| Ns.dist$interest.gt2 == 1 |
              Ns.dist$interest.lt == 1| Ns.dist$interest.lt2 == 1)
-Ns.dist[ind,]
-file <- paste0(ResultDir, "DiscordantNoDE_TCGA.v.GTEX.txt")
-write.table(file = file, Ns.dist[ind,], quote=FALSE, row.names=F, col.names=T)
-
-file <- paste0(PlotDir,"Dist_DE_Conditional.pdf")
-plot.cond.de.distribution(Ns.dist, file=file)
+out <- Ns.dist[ind,]
+out <- select(out, symbol, chr, start, n.tcga, n.tcga.imp, N.tcga, n.gtex, n.gtex.imp, N.gtex, prob.g.g.t.ge, prob.t.g.g.ge)
 
 ## WRITE OUT GENES THAT ARE OUTLIERS WITH RESPECT TO BE FOUND MORE OR LESS IN TCGA
 ## THAN IN GTEX
+file <- paste0(ResultDir, "DiscordantNoDE_TCGA.v.GTEX.txt")
+write.table(file = file, out, quote=FALSE, row.names=F, col.names=T)
+
+file <- paste0(PlotDir,"Dist_DE_Conditional.pdf")
+
+plot.cond.de.distribution(Ns.dist, file=file)
+
+## PLOT PCA BASED ON DE IN TCGA ##
+file <- paste0(PlotDir,"TCGA_DE_PCA.pdf")
+plot.PCA(logPs.tcga, file, geneInfo.tcga)
+plot.PCA(logPs.tcga, file, geneInfo.tcga, exclX=T)
+
+## PLOT PCA BASED ON DE IN GTEX ##
+file <- paste0(PlotDir,"GTEx_DE_PCA.pdf")
+plot.PCA(logPs.gtex, file, geneInfo.gtex)
+plot.PCA(logPs.gtex, file, geneInfo.gtex, exclX=T)
+
+
+## ############################################################ ##
+##                 GSEA ANALYSIS SUMMARY                        ##
+## ############################################################ ##
+
+## BRING IN RESULTS OF GSEA ANALYSIS ##
+gsea <- get.fgsea.results(projects, GSEADir)
+
+make.cytoscape.out(gsea)
+
+## HOW MANY GENE SETS HAVE Q-VALUES LESS THAN 0.05 using ALL CHROMOSOMES ##
+t <- gsea %>% filter(padj <= 0.05, nox==0) %>% select(pathway, proj) %>% table()
+sum(t)
+mean(t)
+colSums(t)
+median(colSums(t))
+dim(t)
+sort(table(rowSums(t)), decreasing=T)
+
+
+## HOW MANY GENE SETS HAVE Q-VALUES LESS THAN 0.05 using AUTOSOMES ONLY ##
+t <- gsea %>% filter(padj <= 0.05, nox==1) %>% select(pathway, proj) %>% table()
+sum(t)
+colSums(t)
+median(colSums(t))
+dim(t)
+sort(table(rowSums(t)), decreasing=T)
+
+## 
+## DETERMINE OVERLAP OF CONTRIBUTING GENES
+plot.file <- paste0(PlotDir, "GSEA_gene_geneset_OL.pdf")
+tmp <- gsea.OL(gsea, plot.file = plot.file, topN=100, LEcutoff=3, NoX=0)
+gsea.OL.X <- tmp$gseaOL
+genesContrib <- tmp$genesContrib
+
+## MEAN NUMBER OF CONTRIBUTING GENES IN TOP 100 GENES SETS WITH AND WITHOUT DUPES 
+sol <- summarize.OL(genesContrib)
+
+## DETERMINE OVERLAP OF CONTRIBUTING GENES WHEN NOT INCLUDING X ##
+plot.file <- paste0(PlotDir, "GSEA_gene_geneset_OL_NoX.pdf")
+tmp <- gsea.OL(gsea, plot.file = plot.file, topN=100, LEcutoff=3, NoX=1)
+gsea.OL.noX.out <- tmp$gsea.OL
+genesContrib.noX <- tmp$genesContrib
+
+## MEAN NUMBER OF CONTRIBUTING GENES IN TOP 100 GENES SETS WITH AND WITHOUT DUPES 
+sol.nox <- summarize.OL(genesContrib.noX)
+
+
+##### REPORT THE TOP 10 GENE SETS IN EACH CANCER WITH AND WITHOUT X GENES #####
+file <- paste0(ResultDir,"/Tables/Top10GSEA_X.txt")
+gseaTbl <- reportTop10(gsea, NoX = 0, TopRank=10, maxlogP = 39.99, file = file)
+
+file <- paste0(ResultDir,"/Tables/Top10GSEA_NoX.txt")
+gseaTblX <-reportTop10(gsea, NoX = 1, TopRank=10, maxlogP = 39.99, file = file)
+
+## CREATE OUTPUT FOR CYTOSCAPE ##
+outDir <- paste0(ResultDir, "GSEA/CytoscapeInFiles/")
+make.cytoscape.out(gsea, outDir)
+
+#### REPORT THE OVERLAP OF GENESETS ACROSS CANCERS ##
+## ALSO CREATES FILE TO USE IN CYTOSCAPE TO EXPLORE CONNECTION BETWEEN
+## MOST SHARED GENESETS
+gs.ol <- genesetOL(gsea, NoLE=5, qThresh=0.05, maxGS=500, ResultDir) 
+
+## BRING GENE SET CLUSTER MEMBERSHIP OF MAJOR CLUSTERS BACK IN ##
+## THESE WERE CREATED IN CYTOSCAPE
+file <- "../Results/GSEA/Shared_NoX_gt6shared default node.csv"
+gsclust <- read.table(file = file, as.is=T, header=T, sep=",")
+cl.genes <- clust.genes(gsclust)
+cl.genesets <- cl.genes$cluster.genesets
+cl.genes <- cl.genes$cluster.genes
+
+out.file <- paste0(ResultDir,"GSEA_Cluster_GeneSets_NoX_gt6shared.txt")
+write.table(file = out.file, cl.genesets, quote=F, row.names=F,
+            col.names=T)
+
+out.file <- paste0(ResultDir,"GSEA_Cluster_Genes_NoX_gt6shared.txt")
+## keep only those genes that are present in 1/4 or more gene sets in cluster ##
+cl.genes.25 <- filter(cl.genes, count > ceiling(.25*NGeneSets))
+write.table(file = out.file, cl.genes.25, quote=F, row.names=F, col.names=T)
+
+
+## DETERMINE THE DISTRIBUTION OF GENES IN LEGENES OF ALL GENE SETS, SIGNIFICANT
+## OR NOT
+gene.gs.dist <- gs.gene.concat(gsea)
+
+## DETERMINE THE FREQUENCY OF GENES IN THE ENRICHED COMMON GENE SET HIGH-LEVEL
+## CLUSTERS
+cl.genes <- clust.genes(gsclust)
+cl.genes <- cl.genes$cluster.genes %>% filter(cluster != 2)
+
+## DETERMINE IF GENES IN ENRICHED COMMON GENE SET HIGH-LEVEL CLUSTERS ARE
+## PRESENT DISPROPORTIONALLY IN THESE GENE-SETS THEN IN OTHERS (E.G. ARE THE
+## GENES THAT ARE COMMON AMONGST THESE HIGH GENESETS THERE BECAUSE THEY
+## DEFINE THE HIGH-LEVEL FUNCTIONS OR BECAUSE THEY ARE UBIQUITOUS IN ALL
+## GENE SETS
+gene.dists <- gene.dist.test(gene.gs.dist, cl.genes)
+
+
+## CREATE A BINARY HEAT MAP FOR EACH HIGH-LEVEL CLUSTER WITH
+## PROJECT ON THE X, AND GENE SET ON THE Y
+plot.file <- paste0(ResultDir, "Plots/Cluster_genesets_HighLevel.pdf")
+plot.cluster.proj.geneset(cl.genesets, gsea, file = plot.file)
+
+
+## CREATE A BINARY HEAT MAP FOR EACH HIGH-LEVEL CLUSTER WITH
+## PROJECT ON X AND GENE ON Y RANKED FROM MOST TO LEAST COMMON (TO GENE
+## SETS IN CLUSTER
+
+plot.file <- paste0(ResultDir, "Plots/Cluster_gene_DE_HighLevel.pdf")
+cluster.proj.genes.in.gs(cl.genes.25, logPs.tcga, file = plot.file)
+
+
+
+
+## BRING IN RESULTS OF GSEA ANALYSIS FOR GTEX ##
+gsea.gtex <- get.fgsea.results(tissues, GSEADirGtex)
+
+file <- paste0(PlotDir, "GTEx_qqplots.pdf")
+get.median.p.value(gsea.gtex, file)
+
+## HOW MANY GENE SETS HAVE Q-VALUES LESS THAN 0.05 using ALL CHROMOSOMES ##
+t <- gsea.gtex %>% filter(padj <= 0.05, nox==0) %>% select(pathway, proj) %>% table()
+sum(t)
+mean(t)
+tiss.gsea.count <- colSums(t)
+median(colSums(t))
+dim(t)
+sort(table(rowSums(t)), decreasing=T)
+
+
+## HOW MANY GENE SETS HAVE Q-VALUES LESS THAN 0.05 using AUTOSOMES ONLY ##
+t <- gsea.gtex %>% filter(padj <= 0.05, nox==1) %>% select(pathway, proj) %>% table()
+sum(t)
+tiss.gsea.count.nox <- colSums(t)
+median(colSums(t))
+dim(t)
+sort(table(rowSums(t)), decreasing=T)
+t <- gsea.gtex %>% filter(padj <= 0.05, nox==1) %>% select(pathway, proj) %>% table()
+sum(t)
+colSums(t)
+dim(t)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ## Preform quantile to quantile comparison ##

@@ -86,7 +86,7 @@ run_limma <- function(project){
 
     out.file <- paste0(ResultDir, project,"_LM_invnorm.rslts")
     write.table(file = out.file, lm.rslt[order(lm.rslt$P.Value),], quote=F,
-                row.names=F, col.names=F, sep="\t")
+                row.names=F, col.names=T, sep="\t")
     
     print(paste0("Wrote ", out.file))
     
